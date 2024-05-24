@@ -17,7 +17,13 @@ The `||` values concatenate the columns into strings.
 Edit the appropriate columns -- you're making two edits -- and the NULL rows will be fixed. 
 All the other rows will remain the same.) */
 
+SELECT 
+COALESCE(product_name, '') || ', ' || COALESCE(product_size, '') || ' (' || COALESCE(product_qty_type, '')  || ')' as product_list
+FROM product;
 
+SELECT 
+COALESCE(product_name, '') || ', ' || COALESCE(product_size, '') || ' (' || COALESCE(product_qty_type, 'unit')  || ')' as product_list
+FROM product;
 
 
 --Windowed Functions
@@ -30,16 +36,46 @@ each new market date for each customer, or select only the unique market dates p
 (without purchase details) and number those visits. 
 HINT: One of these approaches uses ROW_NUMBER() and one uses DENSE_RANK(). */
 
+SELECT 
+    customer_id,
+    market_date,
+    ROW_NUMBER() OVER (PARTITION BY customer_id, market_date ORDER BY market_date) AS visits
+FROM  customer_purchases 
+ORDER BY
+    customer_id, market_date;
+
+SELECT
+    customer_id,
+    market_date,
+    DENSE_RANK() OVER (PARTITION BY customer_id ORDER BY market_date) AS visits
+FROM
+    (SELECT DISTINCT customer_id, market_date  FROM customer_purchases) AS unique_dates
+ORDER BY
+    customer_id, market_date;    
 
 /* 2. Reverse the numbering of the query from a part so each customer’s most recent visit is labeled 1, 
 then write another query that uses this one as a subquery (or temp table) and filters the results to 
 only the customer’s most recent visit. */
-
+CREATE TEMP TABLE new_customer_purchases as
+   	 SELECT
+        customer_id,
+        market_date,
+        ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY market_date DESC) AS visits
+    FROM
+        (SELECT DISTINCT customer_id, market_date AS market_date FROM customer_purchases) AS unique_dates
+	
+SELECT
+    customer_id,
+    market_date,visits
+FROM
+    new_customer_purchases
+WHERE
+    visits = 1;
 
 /* 3. Using a COUNT() window function, include a value along with each row of the 
 customer_purchases table that indicates how many different times that customer has purchased that product_id. */
 
-
+select customer_id,product_id, count(product_id) as purchase_frequency from customer_purchases group by customer_id, product_id
 
 
 -- String manipulations
@@ -54,11 +90,11 @@ Remove any trailing or leading whitespaces. Don't just use a case statement for 
 
 Hint: you might need to use INSTR(product_name,'-') to find the hyphens. INSTR will help split the column. */
 
+select  product_name,substr(product_name,INSTR(product_name,'-')+2,INSTR(product_name,'-')) as description from product
 
 
 /* 2. Filter the query to show any product_size value that contain a number with REGEXP. */
-
-
+select  * from product where product_size REGEXP '[0-9]'
 
 -- UNION
 /* 1. Using a UNION, write a query that displays the market dates with the highest and lowest total sales.
@@ -70,6 +106,23 @@ HINT: There are a possibly a few ways to do this query, but if you're struggling
 3) Query the second temp table twice, once for the best day, once for the worst day, 
 with a UNION binding them. */
 
+
+select market_date, visits, 'Best day' as day_type from (
+SELECT
+    market_date,
+    RANK() OVER (ORDER BY total_sales DESC) AS visits
+FROM
+    (select market_date, sum(quantity *cost_to_customer_per_qty) total_sales  from 	customer_purchases  group by market_date) 
+	AS unique_dates )  as BestDays where visits ==1	
+UNION
+select market_date, visits, 'Worst day' as day_type from (
+SELECT
+    market_date,
+    RANK() OVER (ORDER BY total_sales asc) AS visits
+FROM
+    (select market_date, sum(quantity *cost_to_customer_per_qty) total_sales  from 	customer_purchases  group by market_date) 
+	AS unique_dates)  as WorstDays where visits ==1
+	
 
 
 
